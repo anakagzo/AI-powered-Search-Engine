@@ -122,13 +122,19 @@ This ensures robustness while minimising latency and cost.
 -- Hybrid retrieval strategies
 
 ### Final Metadata Schema
-source: str                 # Data origin like document name
-chunk_type: str             # text | table & text | image & text
-heading: str                # Top-level document heading
-sub_heading: str            # Nested section heading (if any)
-section_title: str          # chunk title
-image_paths: List[str]      # Extracted image references
-date: str                   # Document or ingestion date
+* source:                 Data origin like document name
+
+* chunk_type:              text | table & text | image & text
+
+* heading:                Top-level document heading
+
+* sub_heading:           Nested section heading (if any)
+
+* section_title:           chunk title
+
+* image_paths:      Extracted image references
+
+* date:                   Document or ingestion date
 
 ### Why this metadata works well for retrieval
 
