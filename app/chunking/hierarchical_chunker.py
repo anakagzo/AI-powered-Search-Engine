@@ -8,31 +8,53 @@ from app.llm.post_processor import PostProcessor
 class HierarchicalChunker:
     """
     Chunks markdown documents hierarchically based on headers (H1, H2, H3).
-    Applies LLM post-processing for large or structured content.
+    Applies LLM post-processing for unstructured content like tables and images, and 
+    further splits large chunk sections.
     """
 
-    def __init__(self, max_words: int = 500):    
+    def __init__(self, max_words: int = 500): 
+        """
+        Initialize the HierarchicalChunker.
+
+        Args:
+            max_words (int): Maximum number of allowed words per chunk.
+        """
         self.max_words = max_words
 
+
     def word_count(self, text: str) -> int:
+        """Count the number of words in a chunk."""
         return len(text.split())
 
+
     def _find_headers(self, markdown: str, pattern: str):
+        """
+        Find all header matches in the markdown text 
+        starting with H1, followed by H2 and H3 (when applicable) using the provided pattern.
+        Returns:
+        - list of sections matching the header pattern.
+        """
         return list(re.finditer(pattern, markdown, flags=re.MULTILINE))
 
 
     def _extract_header(self, section: str):
+        """
+        Extracts the header level and title from a markdown section.    
+        Returns:
+        - header_level (str | None): The level of the header (e.g., '#', '##', '###').
+        - header_title (str | None): The title text of the header.
+        """
         m = re.match(r"^(#{1,3})\s+(.*)", section)
         return (m.group(1), m.group(2).strip()) if m else (None, None)
 
 
     def _split_with_intro(self, markdown: str, pattern: str):
         """
-        Splits markdown while preserving text before first subheader.
+        Splits a header section into subsections while preserving text before its first subheader.
 
         Returns:
         - intro_text (str | None)
-        - list of subsection strings
+        - list of subsections
         """
         matches = list(re.finditer(pattern, markdown, flags=re.MULTILINE))
 
@@ -50,10 +72,16 @@ class HierarchicalChunker:
         return intro_text, sections
 
 
-    # =========================
-    # strict table detection (miss-averse)
-    # =========================
     def contains_table(self, markdown: str) -> bool:
+        """
+        Detects if a markdown string contains a table.
+
+        Args:
+            markdown (str): The markdown text to analyze.
+
+        Returns:
+            bool: True if a table is detected, False otherwise.
+        """
         lines = markdown.splitlines()
 
         pipe_like_lines = 0
@@ -80,17 +108,23 @@ class HierarchicalChunker:
         return pipe_like_lines >= 2 or separator_found
 
 
-    # =========================
-    # NEW: strict image detection
-    # =========================
     def contains_image(self, markdown: str) -> bool:
+        """
+        Detects if a markdown string contains an image. 
+        
+        Args:
+            markdown (str): The markdown text to analyze.   
+        Returns:
+            bool: True if an image is detected, False otherwise.
+        """
         return bool(re.search(r"!\[.*?\]\(.*?\)", markdown))
 
 
-    # =========================
-    # NEW: unified detector
-    # =========================
     def _contains_table_or_image(self, markdown: str) -> bool:
+        """
+        Checks if a markdown section/chunk contains either a table or an image.
+        This unified detection helps in deciding if LLM post processing is needed.
+        """
         return self.contains_table(markdown) or self.contains_image(markdown)
 
 
@@ -99,16 +133,30 @@ class HierarchicalChunker:
         markdown: str,
         source_file: str = "uploaded_docx"
     ) -> List[Dict[str, Any]]:
+        """
+        Chunks the markdown document hierarchically based on headers (H1, H2, H3).
+        Large sections or those containing tables/images are marked for LLM post-processing.  
 
-        chunks = []
-        idx = 0
+        Note: breaking of sections into smaller chunks is only done if they exceed max_words limit. 
+            Documents without any headers are treated as single chunks and marked for LLM processing.
 
-        # 1️⃣ Text before first H1
+        Args:
+            markdown (str): The markdown content to be chunked.
+            source_file (str): The source filename for metadata purposes.   
+        Returns:
+            List[Dict[str, Any]]: A list of chunk dictionaries with text and metadata.  
+        """
+
+        chunks = []  # List to hold the resulting chunks
+        idx = 0 # takes count of chunks created, used as index for creating chunk unique IDs
+
+        # step 1. check for H1 headers in the markdown document - Split by H1
         h1_matches = self._find_headers(markdown, r"^#\s+")
 
         if not h1_matches:
-            # table/image detection applied here
-            needs_llm = self._contains_table_or_image(markdown) or self.word_count(markdown) > self.max_words
+            # No H1 headers found, treat entire document as a single chunk, 
+            # then mark document for LLM processing - chunking by LLM will be done later
+           
             chunks.append({
                 "chunk_id": deterministic_hash(f"{source_file}::chunk_{idx}"),
                 "text": markdown.strip(),
@@ -121,11 +169,13 @@ class HierarchicalChunker:
                 }
             })
             return chunks
-
+        
+        # step 2. Process intro text before first H1 (if any) - treat as separate chunk
+        # this is a case where document has intro text before first H1 header 
         intro = markdown[:h1_matches[0].start()].strip()
         if intro:
+            # mark intro chunk for LLM processing if it contains table/image or exceeds max words
             needs_llm = self._contains_table_or_image(intro) or self.word_count(intro) > self.max_words
-
             chunks.append({
                 "chunk_id": deterministic_hash(f"{source_file}::chunk_{idx}"),
                 "text": intro,
@@ -137,9 +187,9 @@ class HierarchicalChunker:
                     "contains_image": self.contains_image(intro)     
                 }
             })
-            idx += 1
+            idx += 1 # increment chunk index
 
-        # 2️⃣ Process each H1 section
+        # step 3. Process each H1 section, if too large, split further by H2 
         for i, h1_match in enumerate(h1_matches):
             start = h1_match.start()
             end = h1_matches[i + 1].start() if i + 1 < len(h1_matches) else len(markdown)
@@ -148,8 +198,9 @@ class HierarchicalChunker:
             _, h1_title = self._extract_header(h1_section)
             wc1 = self.word_count(h1_section)
 
-            # NEW: unified detection
+            # check if section contains table or image
             has_structured_content = self._contains_table_or_image(h1_section)
+
             if wc1 <= self.max_words:
                 chunks.append({
                     "chunk_id": deterministic_hash(f"{source_file}::chunk_{idx}"),
@@ -163,9 +214,9 @@ class HierarchicalChunker:
                     }
                 })
                 idx += 1
-                continue
+                continue 
 
-            # 3️⃣ Split H1 → H2
+            # split large H1 section by H2
             h1_intro, h2_sections = self._split_with_intro(h1_section, r"^##\s+")
             if h1_intro:
                 wc_intro = self.word_count(h1_intro)
@@ -184,6 +235,7 @@ class HierarchicalChunker:
                 })
                 idx += 1
 
+            # step 4. Process each H2 section, if too large, split further by H3
             for h2 in h2_sections:
                 _, h2_title = self._extract_header(h2)
                 wc2 = self.word_count(h2)
@@ -204,7 +256,7 @@ class HierarchicalChunker:
                     idx += 1
                     continue
 
-                # 4️⃣ Split H2 → H3
+                # split large H2 section by H3
                 h2_intro, h3_sections = self._split_with_intro(h2, r"^###\s+")
 
                 if h2_intro:
@@ -223,6 +275,7 @@ class HierarchicalChunker:
                     })
                     idx += 1
 
+                # step 5. Process each H3 section, if too large, mark for LLM processing
                 for h3 in h3_sections:
                     _, h3_title = self._extract_header(h3)
                     wc3 = self.word_count(h3)
@@ -250,24 +303,25 @@ class HierarchicalChunker:
         return chunks
 
 
-
-    # ============================================================
-    # FINAL NORMALIZATION (MERGE BOTH STAGES)
-    # ============================================================
-
     def finalize_chunks(self, initial_chunks: List[Dict[str, Any]], 
                         source_file: str="uploaded_docx")-> List[Dict[str, Any]]:
         """
-        Produces final production-ready chunks with full metadata.
+        Finalizes chunks by applying LLM post-processing where needed.
+
+        Args:
+            initial_chunks (List[Dict[str, Any]]): The list of initial chunks with metadata
+            source_file (str): The source filename for metadata purposes.
+        Returns:
+            List[Dict[str, Any]]: The finalized list of chunks ready for RAG ingestion with retrieval optimized metadata
         """
         final_chunks = []
         idx = 0
         today = datetime.now().date().isoformat()
 
         for each_chunk in initial_chunks:
-            #print(chunk)
             meta = each_chunk["metadata"]
 
+            # If no LLM processing is needed, add chunk as is
             if not meta["needs_llm"]:
                 final_chunks.append({
                     "chunk_id": deterministic_hash(f"{source_file}::chunk_{idx}"),
@@ -284,11 +338,12 @@ class HierarchicalChunker:
                     }
                 })
                 idx += 1
-                continue
+                continue 
 
             # LLM post-processing
             refined = PostProcessor(max_words=self.max_words).process_chunk(each_chunk)
 
+            # Append all refined chunks after LLM processing and update metadata
             for r in refined:
                 final_chunks.append({
                     "chunk_id": deterministic_hash(f"{source_file}::chunk_{idx}"),

@@ -10,10 +10,20 @@ from openai import OpenAI
 
 class PostProcessor:
     """
-    LLM-based post-processing utilities for document chunks.
+    Handles the chunking of markdown document sections that do not have adequate headers or are too large.
+    Post-processes markdown chunks with images using a vision-capable LLM to ensure RAG readiness.
+    Handles table and image summarization and robust JSON extraction from LLM outputs.
     """
 
     def __init__(self, max_words: int = 500, api_key: str | None = None, model: str = "gpt-4.1-mini"):  
+        """
+        Initializes the PostProcessor with LLM client and parameters.
+        args:
+            max_words (int): Maximum words per chunk before splitting.
+            api_key (str | None): OpenAI API key. If None, loads from environment.
+            model (str): The LLM model to use for processing.
+        """
+
         # Load environment variables for API access
         load_dotenv(override=True)
         api_key = os.getenv("OPENAI_API_KEY") or api_key
@@ -22,9 +32,7 @@ class PostProcessor:
         os.environ["OPENAI_API_KEY"] = api_key
 
         self.client = OpenAI(api_key=api_key)
-
         self.max_words = max_words
-
         self.model = model
 
         self.prompt = """
@@ -79,21 +87,28 @@ class PostProcessor:
             raise ValueError("No JSON found in LLM output")
 
         return json.loads(match.group(1))
-      
-    
+        
 
     def _extract_image_paths(self, markdown: str) -> list[str]:
+        '''find all image paths in markdown using regex pattern'''
         image_regex = re.compile(r'!\[[^\]]*\]\(([^)]+)\)')
         return image_regex.findall(markdown)
     
     def _inject_image_summary(self,markdown: str, image_path: str, summary: str) -> str:
+        '''inject image summary (from LLM) after the image in markdown'''
         image_pattern = rf'(!\[[^\]]*\]\({re.escape(image_path)}\))'
         replacement = r'\1\n\n**Image summary:** ' + summary
         return re.sub(image_pattern, replacement, markdown, count=1)
     
+
     def summarize_image(self, image_path: str) -> str:
         """
         Uses a vision-capable LLM to summarise an image.
+
+        args:
+            image_path (str): The file path to the image.
+        returns:
+            str: The concise summary of the image content.
         """
         path = Path(image_path)
         if not path.exists():
@@ -127,13 +142,23 @@ class PostProcessor:
 
         return response.output_text.strip()
 
+
     def process_chunk(self, chunk: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Robust LLM post-processing with JSON recovery.
+        Robust LLM post-processing with JSON recovery. This includes:
+        1- Chunk splitting if too large.
+        2- Section title addition if missing.
+        3- Table detection and summarization.
+        4- Image path extraction and summarization.
+
+        args:
+            chunk (Dict[str, Any]): The markdown chunk with metadata.
+        returns:
+            List[Dict[str, Any]]: The list of refined chunks after processing.
         """
         markdown = chunk["text"]
 
-        # ---- IMAGE AWARE PRE-PROCESSING ----
+        # Extract image paths and summarize each image
         image_paths = self._extract_image_paths(markdown)
         for image_path in image_paths:
             summary = self.summarize_image(image_path)
