@@ -1,0 +1,10 @@
+__pycache__
+.*
+!.gitignore
+.venv
+myenv
+test.py
+plan.md
+.env
+#test folders
+not_used
