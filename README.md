@@ -24,100 +24,101 @@ pandoc --version
 
 (Install via Homebrew, apt, or the Pandoc website depending on OS.)
 
-* Environment Setup
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+* Environment Setup:
+
+- cd into project root 
+- run python -m venv .venv
+- enter env: .venv/scripts/activate
+- pip install -r requirements.txt
 
 
 * Create a .env file:
 
-OPENAI_API_KEY=your_api_key_here
+- OPENAI_API_KEY=your_api_key_here
 
 * Run the API
-uvicorn app.main:app --reload
+  
+- uvicorn app.main:app --reload
 
 ### API Documentation
 * POST /upload
 
-Uploads and processes a .docx document.
+- Uploads and processes a .docx document.
 
 * Request
 
-multipart/form-data
+- multipart/form-data
 
 * Field: file (must be .docx)
 
 * Response
 
-Processing status
+- Processing status
 
-Number of chunks created
+- Number of chunks created
 
-Retrieval-ready chunks with metadata
+- Retrieval-ready chunks with metadata
 
-Errors are handled gracefully (empty files, unsupported formats, corrupted documents).
+* Errors are handled gracefully (empty files, unsupported formats, corrupted documents).
 
 ## Chunking Strategy
-Hierarchical Chunking (Primary)
+### Hierarchical Chunking (Primary)
 
-The system first chunks documents using their natural structure:
+* The system first chunks documents using their natural structure:
 
-Headings and subheadings
+- Headings and subheadings
 
-Paragraph boundaries
+* This approach is:
 
-This approach is:
+- Fast (no AI involved)
 
-Fast (no AI involved)
+- Deterministic
 
-Deterministic
+- Cost-effective
 
-Cost-effective
-
-Context-aware
+- Context-aware
 
 Most care home documents are well structured, making this the preferred method.
 
-Headers and subheaders are preserved in metadata to:
+* Headers and subheaders are preserved in metadata to:
 
-Maintain document position
+- Maintain document position
 
-Enable metadata filtering
+- Enable metadata filtering
 
-Improve retrieval relevance
+- Improve retrieval relevance
 
-LLM-Assisted Chunking (Selective)
+### LLM-Assisted Chunking (Selective)
 
-LLMs are used only when necessary, for example:
+* LLMs are used only when necessary, for example:
 
-Oversized chunks
+- Oversized chunks
 
-Poorly structured documents
+- Poorly structured documents
 
-Tables or Images requiring semantic summaries
+- Tables or Images requiring semantic summaries
 
 This ensures robustness while minimising latency and cost.
 
-Tables and Images
+* Tables and Images:
 
-Tables are preserved verbatim and summarised by an LLM, with the summary appended directly below the table.
+- Tables are preserved verbatim and summarised by an LLM, with the summary appended directly below the table.
 
-Images are extracted by Pandoc, summarised upstream using a vision-capable LLM, and have their summaries injected into the Markdown.
+- Images are extracted by Pandoc, summarised upstream using a vision-capable LLM, and have their summaries injected into the Markdown.
 
-This makes non-text elements searchable and embedding-friendly.
+- This makes non-text elements searchable and embedding-friendly.
 
 ## Metadata Design (Retrieval-Oriented)
 
-Chunks are enriched with metadata to support:
+* Chunks are enriched with metadata to support:
 
-Vector similarity search
+- Vector similarity search
 
-Keyword filtering
+- Keyword filtering
 
-Hybrid retrieval strategies
+- Hybrid retrieval strategies
 
-Final Metadata Schema
+### Final Metadata Schema
 source: str                 # Data origin like document name
 chunk_type: str             # text | table & text | image & text
 heading: str                # Top-level document heading
@@ -128,42 +129,42 @@ date: str                   # Document or ingestion date
 
 ### Why this metadata works well for retrieval
 
-heading / sub_heading preserve document structure and enable context-aware filtering
+- heading / sub_heading preserve document structure and enable context-aware filtering
 
-chunk_type allows selective retrieval (e.g. tables only)
+- chunk_type allows selective retrieval (e.g. tables only)
 
-image_paths support multimodal reprocessing without polluting embeddings
+- image_paths support multimodal reprocessing without polluting embeddings
 
-source and date enable provenance and temporal filtering
+- source and date enable provenance and temporal filtering
 
-RAG Readiness
+- RAG Readiness
 
-The output JSON is immediately suitable for:
+* The output JSON is immediately suitable for:
 
-Vector databases
+- Vector databases
 
-Hybrid keyword + semantic search
+- Hybrid keyword + semantic search
 
-Re-ranking pipelines
+- Re-ranking pipelines
 
-Embedding is intentionally decoupled to allow flexibility in downstream system design.
+- Embedding is intentionally decoupled to allow flexibility in downstream system design.
 
 ## Assumptions
 
-Most care home documents are well structured
+- Most care home documents are well structured
 
-The pipeline remains robust when this assumption fails via selective LLM use
+- The pipeline remains robust when this assumption fails via selective LLM use
 
 ## Summary
 
 This implementation demonstrates:
 
-A well-justified chunking strategy
+- A well-justified chunking strategy
 
-Robust preprocessing for unstructured data
+- Robust preprocessing for unstructured data
 
-Retrieval-optimised storage design
+- Retrieval-optimised storage design
 
-Clear separation between deterministic parsing and AI-based enrichment
+- Clear separation between deterministic parsing and AI-based enrichment
 
-It is designed to integrate cleanly into a larger, production-grade RAG system.
+- It is designed to integrate cleanly into a larger, production-grade RAG system.
