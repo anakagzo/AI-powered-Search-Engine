@@ -26,10 +26,13 @@ pandoc --version
 
 * Environment Setup:
 
-** cd into project root 
-** run python -m venv .venv
-** enter env: .venv/scripts/activate
-** pip install -r requirements.txt
+-- cd into project root 
+
+-- run python -m venv .venv
+
+-- enter env: .venv/scripts/activate
+
+-- pip install -r requirements.txt
 
 
 * Create a .env file:
