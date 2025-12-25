@@ -1,7 +1,9 @@
 import os
 import re
 import json
+import base64
 from typing import List, Dict, Any
+from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -11,7 +13,7 @@ class PostProcessor:
     LLM-based post-processing utilities for document chunks.
     """
 
-    def __init__(self, max_words: int = 500, api_key: str | None = None):  
+    def __init__(self, max_words: int = 500, api_key: str | None = None, model: str = "gpt-4.1-mini"):  
         # Load environment variables for API access
         load_dotenv(override=True)
         api_key = os.getenv("OPENAI_API_KEY") or api_key
@@ -23,27 +25,38 @@ class PostProcessor:
 
         self.max_words = max_words
 
+        self.model = model
+
         self.prompt = """
-        You are an expert document post-processor.
+            You are an expert document post-processor for Retrieval-Augmented Generation (RAG).
 
-        Rules:
-        - Do NOT paraphrase.
-        - Do NOT break tables or images.
-        - If text exceeds {MAX_WORDS}, split into coherent chunks.
-        - If a table or image exists, keep it intact and add a concise summary AFTER it.
-        - Add a section title if missing (≤ 1 sentence).
+            Your task is to structure Markdown content into retrieval-ready chunks.
 
-        Return STRICT JSON only.
+            STRICT RULES:
+            - Return STRICT JSON only. No explanations, no markdown fences.
+            - Do NOT paraphrase.
+            - Do NOT break tables or images.
+            - If a table exists, keep it intact and add a concise summary AFTER it.
+            - Preserve the Markdown text exactly as provided.
+            - If text exceeds {MAX_WORDS}, split into coherent chunks.
+            - Add a section title only if missing (maximum 1 sentence).
 
-        For each chunk return:
-        - text
-        - section_title
-        - chunk_type ("text", "table & text", "image & text")
+            IMAGE HANDLING:
+            - Detect standard Markdown image syntax: ![alt text](path)
+            - Extract ALL image paths exactly as written.
+            - Do NOT invent or modify image paths.
+            - If no images exist, return an empty list.
 
-        Markdown:
-        ----------------
-        {text}
-        ----------------
+            For EACH returned chunk, output the following fields:
+            - text 
+            - section_title
+            - chunk_type (one of: "text", "table/text", "image/text", table/image/text)
+            - image_paths (array of strings, may be empty)
+
+            Markdown input:
+            ----------------
+            {text}
+            ----------------
         """
 
     def safe_json_loads(self, text: str):
@@ -66,17 +79,71 @@ class PostProcessor:
             raise ValueError("No JSON found in LLM output")
 
         return json.loads(match.group(1))
+      
+    
 
+    def _extract_image_paths(self, markdown: str) -> list[str]:
+        image_regex = re.compile(r'!\[[^\]]*\]\(([^)]+)\)')
+        return image_regex.findall(markdown)
+    
+    def _inject_image_summary(self,markdown: str, image_path: str, summary: str) -> str:
+        image_pattern = rf'(!\[[^\]]*\]\({re.escape(image_path)}\))'
+        replacement = r'\1\n\n**Image summary:** ' + summary
+        return re.sub(image_pattern, replacement, markdown, count=1)
+    
+    def summarize_image(self, image_path: str) -> str:
+        """
+        Uses a vision-capable LLM to summarise an image.
+        """
+        path = Path(image_path)
+        if not path.exists():
+            return "Image file not found."
+
+        image_bytes = path.read_bytes()
+        image_b64 = base64.b64encode(image_bytes).decode()
+
+        response = self.client.responses.create(
+            model=self.model,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": (
+                                "Summarise the information shown in this image "
+                                "clearly and concisely for semantic retrieval. "
+                                "Do not speculate beyond visible content."
+                            )
+                        },
+                        {
+                            "type": "input_image",
+                            "image_base64": image_b64
+                        }
+                    ]
+                }
+            ]
+        )
+
+        return response.output_text.strip()
 
     def process_chunk(self, chunk: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Robust LLM post-processing with JSON recovery.
         """
+        markdown = chunk["text"]
+
+        # ---- IMAGE AWARE PRE-PROCESSING ----
+        image_paths = self._extract_image_paths(markdown)
+        for image_path in image_paths:
+            summary = self.summarize_image(image_path)
+            markdown = self._inject_image_summary(markdown, image_path, summary)
+
         response = self.client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model=self.model,
             messages=[
                 {"role": "system", "content": "Return STRICT JSON only."},
-                {"role": "user", "content": self.prompt.format(text=chunk["text"], MAX_WORDS=self.max_words)}
+                {"role": "user", "content": self.prompt.format(text=markdown, MAX_WORDS=self.max_words)}
             ],
             temperature=0.1
         )
@@ -96,8 +163,7 @@ class PostProcessor:
                     or "Untitled Section",
                 "chunk_type": (
                     "table & text" if chunk["metadata"].get("contains_table")
-                    else "image & text" if chunk["metadata"].get("contains_image")
+                    else "image & text" if image_paths
                     else "text"
                 )
-            }]
-
+            }]       

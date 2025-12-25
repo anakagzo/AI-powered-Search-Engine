@@ -300,6 +300,7 @@ class HierarchicalChunker:
                             or r["section_title"],
                         "sub_heading": meta.get("headers", {}).get("h2"),
                         "section_title": meta.get("headers", {}).get("h2") or r["section_title"],
+                        "image_paths": r["image_paths"] if r["image_paths"] else None,
                         "date": today
                     }
                 })

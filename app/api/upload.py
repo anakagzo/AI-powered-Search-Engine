@@ -49,9 +49,6 @@ async def upload_docx(file: UploadFile = File(...)):
     )
 
 
-    for a_chunk in post_processed_chunks:
-        print(f'\n{a_chunk}\n\n')
-    print(len(post_processed_chunks))
 
 
    

@@ -7,8 +7,9 @@ class ChunkMetadata(BaseModel):
     heading: str
     sub_heading: Optional[str]
     section_title: str
+    image_paths: Optional[str] = None
     date: str
-    image_path: Optional[str] = None
+    
 
 
 class Chunk(BaseModel):
