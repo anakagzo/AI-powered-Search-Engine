@@ -183,8 +183,10 @@ This implementation demonstrates:
 
 The following diagrams illustrates the end-to-end architecture of the RAG-based unified search system.
 
+* Ingestion and Indexing Process
 * ![RAG System Architecture - Ingestion process](docs/system-architecture-Ingestion.PNG)
 
+* Retrieval Process
 * ![RAG System Architecture - Retrieval process](docs/system-architecture-Retrieval.PNG)
 
 For more explanation and the reasoning behind the design decisions, see:
