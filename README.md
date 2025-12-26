@@ -58,6 +58,8 @@ The design prioritises determinism, performance, cost efficiency, and retrieval 
 
 -- Processing status
 
+-- File name
+
 -- Number of chunks created
 
 -- Retrieval-ready chunks with metadata
