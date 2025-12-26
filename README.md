@@ -1,4 +1,4 @@
-# RAG Document Ingestion & Chunking 
+# RAG Document Ingestion & Chunking (Part 1)
 ## Overview
 
 This project implements a FastAPI-based document ingestion service for a Retrieval-Augmented Generation (RAG) pipeline.
@@ -122,7 +122,7 @@ This ensures robustness while minimising latency and cost.
 -- Hybrid retrieval strategies
 
 ### Final Metadata Schema
-* source:                 Data origin like document name
+* source:                 Data origin i.e. document or file name
 
 * chunk_type:              text | table & text | image & text
 
@@ -156,7 +156,8 @@ This ensures robustness while minimising latency and cost.
 
 - Re-ranking pipelines
 
-- Embedding is intentionally decoupled to allow flexibility in downstream system design.
+- Embedding is intentionally decoupled to allow flexibility in downstream system design - Chunk content to be 
+embedded using Embedding Model (OpenAI Embedding) and added to the chunk before storage.
 
 ## Assumptions
 
@@ -177,3 +178,15 @@ This implementation demonstrates:
 - Clear separation between deterministic parsing and AI-based enrichment
 
 - It is designed to integrate cleanly into a larger, production-grade RAG system.
+
+# System Architecture (Part 2)
+
+The following diagrams illustrates the end-to-end architecture of the RAG-based unified search system.
+
+* ![RAG System Architecture - Ingestion process](docs/system-architecture-Ingestion.PNG)
+
+* ![RAG System Architecture - Retrieval process](docs/system-architecture-Retrieval.PNG)
+
+For more explanation and the reasoning behind the design decisions, see:
+- [Architecture Legend & Design Rationale](docs/architecture-legend.md)
+
