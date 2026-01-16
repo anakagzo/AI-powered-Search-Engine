@@ -1,4 +1,4 @@
-# RAG Document Ingestion & Chunking (Part 1)
+# RAG Document Ingestion & Chunking (Part 1) - Complete
 ## Overview
 
 This project implements a FastAPI-based document ingestion service for a Retrieval-Augmented Generation (RAG) pipeline.
@@ -83,7 +83,7 @@ The design prioritises determinism, performance, cost efficiency, and retrieval 
 
 -- Context-aware
 
-Most care home documents are well structured, making this the preferred method.
+Most documents (in Organisations) are well structured, making this the preferred method.
 
 * Headers and subheaders are preserved in metadata to:
 
@@ -163,7 +163,7 @@ embedded using Embedding Model (OpenAI Embedding) and added to the chunk before 
 
 ## Assumptions
 
-- Most care home documents are well structured
+- Most Organisations have documents that are well structured
 
 - The pipeline remains robust when this assumption fails via selective LLM use
 
@@ -181,7 +181,7 @@ This implementation demonstrates:
 
 - It is designed to integrate cleanly into a larger, production-grade RAG system.
 
-# System Architecture (Part 2)
+# System Architecture (Part 2) - To be Implemented
 
 The following diagrams illustrates the end-to-end architecture of the RAG-based unified search system.
 
