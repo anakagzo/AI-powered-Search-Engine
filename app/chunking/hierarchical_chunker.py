@@ -263,7 +263,7 @@ class HierarchicalChunker:
                     wc2i = self.word_count(h2_intro)
                     needs_llm = self._contains_table_or_image(h2_intro) or wc2i > self.max_words
                     chunks.append({
-                        "chunk_id": f"{source_file}::chunk_{idx}",
+                        "chunk_id": deterministic_hash(f"{source_file}::chunk_{idx}"),
                         "text": h2_intro,
                         "metadata": {
                             "headers": {"h1": h1_title, "h2": h2_title},

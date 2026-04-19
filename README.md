@@ -1,8 +1,8 @@
-# RAG Document Ingestion & Chunking (Part 1) - Complete
+# RAG Document Ingestion, Embedding, and Retrieval - Complete
 ## Overview
 
-This project implements a FastAPI-based document ingestion service for a Retrieval-Augmented Generation (RAG) pipeline.
-It ingests .docx files, converts them to Markdown using Pandoc, applies a hybrid hierarchical + LLM-assisted chunking strategy, and outputs retrieval-ready JSON with rich metadata.
+This project implements a FastAPI-based ingestion and retrieval service for a Retrieval-Augmented Generation (RAG) pipeline.
+It ingests .docx files, converts them to Markdown using Pandoc, applies a hybrid hierarchical + LLM-assisted chunking strategy, generates OpenAI embeddings for chunk content, and stores vectors + metadata in OpenSearch for production-ready retrieval.
 
 The design prioritises determinism, performance, cost efficiency, and retrieval quality.
 
@@ -14,6 +14,7 @@ The design prioritises determinism, performance, cost efficiency, and retrieval 
 * Pandoc
 
 * OpenAI API key
+* OpenSearch cluster (local or managed)
 
 * Install Pandoc
 
@@ -38,6 +39,15 @@ The design prioritises determinism, performance, cost efficiency, and retrieval 
 * Create a .env file:
 
 -- OPENAI_API_KEY=your_api_key_here
+-- OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+-- OPENAI_EMBEDDING_DIMENSIONS=1536
+-- OPENSEARCH_HOST=localhost
+-- OPENSEARCH_PORT=9200
+-- OPENSEARCH_USERNAME=admin
+-- OPENSEARCH_PASSWORD=admin
+-- OPENSEARCH_USE_SSL=false
+-- OPENSEARCH_VERIFY_CERTS=false
+-- OPENSEARCH_INDEX=rag_chunks
 
 * Run the API
   
@@ -46,7 +56,7 @@ The design prioritises determinism, performance, cost efficiency, and retrieval 
 ### API Documentation
 * POST /upload
 
--- Uploads and processes a .docx document.
+-- Uploads and processes a .docx document, creates embeddings, and indexes chunks in OpenSearch.
 
 * Request
 
@@ -60,9 +70,31 @@ The design prioritises determinism, performance, cost efficiency, and retrieval 
 
 -- File name
 
--- Number of chunks created
+-- Number of chunks created and indexed
 
--- Retrieval-ready chunks with metadata
+-- Target OpenSearch index name
+
+* POST /search
+
+-- Runs retrieval over indexed chunks with one of:
+
+-- keyword search (BM25)
+
+-- semantic search (vector similarity)
+
+-- hybrid search (weighted reciprocal rank fusion)
+
+* Search request fields
+
+-- query: user query text
+
+-- search_type: keyword | semantic | hybrid
+
+-- top_k: number of results
+
+-- filters: optional metadata filters (source, chunk_type, heading, sub_heading, section_title, date range)
+
+-- keyword_weight / semantic_weight: used for hybrid ranking
 
 * Errors are handled gracefully (empty files, unsupported formats, corrupted documents).
 
@@ -150,7 +182,7 @@ This ensures robustness while minimising latency and cost.
 
 - RAG Readiness
 
-## The output JSON is immediately suitable for:
+## The indexed chunks are immediately suitable for:
 
 - Vector databases
 
@@ -158,8 +190,8 @@ This ensures robustness while minimising latency and cost.
 
 - Re-ranking pipelines
 
-- Embedding is intentionally decoupled to allow flexibility in downstream system design - Chunk content to be 
-embedded using Embedding Model (OpenAI Embedding) and added to the chunk before storage.
+- Chunk content is embedded with OpenAI Embeddings and persisted into OpenSearch with metadata.
+- Retrieval is provided by the API and supports keyword, semantic, and hybrid ranking out of the box.
 
 ## Assumptions
 

@@ -36,6 +36,7 @@ multidict==6.7.0
 mypy_extensions==1.1.0
 numpy==2.4.0
 openai==2.14.0
+opensearch-py==2.8.0
 orjson==3.11.5
 packaging==25.0
 plumbum==1.10.0
